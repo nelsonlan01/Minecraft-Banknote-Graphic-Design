@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Minecraft 鈔票計數器</title>
+    <style>
+        :root {
+            --mc-green: #55ff55;
+            --mc-purple: #a335ee;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: white;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            max-width: 600px;
+            height: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        .title-section {
+            text-align: center;
+            margin-bottom: 5px;
+            flex-shrink: 0;
+        }
+
+        .title-section h1 {
+            margin: 0;
+            color: var(--mc-green);
+            font-size: 1.6rem;
+            text-shadow: 2px 2px #000;
+        }
+
+        .title-section h6 {
+            margin: 1px 0;
+            color: #888;
+            font-weight: normal;
+            font-size: 0.7rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #2d2d2d;
+            padding: 10px 15px;
+            border-radius: 12px;
+            margin-bottom: 10px;
+            border: 2px solid #3a3a3a;
+            flex-shrink: 0;
+        }
+
+        .total-display { margin: 0; color: #ffffff; font-size: 1.3rem; font-weight: bold; }
+        .total-display span { color: var(--mc-green); }
+
+        .header-btns { display: flex; gap: 8px; }
+
+        .action-btn {
+            color: white;
+            border: 2px solid rgba(0,0,0,0.2);
+            padding: 6px 10px;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+            box-shadow: inset 0 -3px 0 rgba(0,0,0,0.3);
+            font-size: 13px;
+        }
+
+        #copy-btn { background-color: #5555ff; border-color: #0000aa; }
+        #clear-btn { background-color: #ff5555; border-color: #aa0000; }
+
+        .desk-container {
+            flex-grow: 1;
+            position: relative;
+            margin-bottom: 10px;
+            overflow: hidden; 
+            border: 6px solid #4a3b2c;
+            border-radius: 12px;
+        }
+
+        .desk {
+            width: 100%;
+            height: 100%;
+            background-color: #2b5329;
+            position: absolute;
+            box-shadow: inset 0 0 50px rgba(0,0,0,0.8);
+        }
+
+        #fx-canvas {
+            position: absolute; top: 0; left: 0;
+            pointer-events: none; z-index: 10;
+        }
+
+        .banknote {
+            position: absolute;
+            width: 120px; 
+            height: auto;
+            box-shadow: 4px 4px 12px rgba(0,0,0,0.7);
+            border-radius: 6px;
+            pointer-events: none;
+            animation: dropIn 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transform-origin: center; 
+        }
+
+        .enchanted { filter: drop-shadow(0 0 8px var(--mc-purple)); }
+        
+        @keyframes dropIn {
+            0% { transform: scale(1.4); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 12px;
+            border: 2px solid #3a3a3a;
+            flex-shrink: 0;
+        }
+
+        .note-btn {
+            background-color: #aaaaaa;
+            color: #111;
+            border: 2px solid #555;
+            height: 55px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: inset 0 -4px 0 rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            transition: transform 0.05s;
+        }
+
+        /* 數字鍵提示樣式 */
+        .key-hint {
+            position: absolute;
+            top: 2px;
+            right: 4px;
+            font-size: 0.65rem;
+            color: rgba(0,0,0,0.5);
+            font-family: monospace;
+        }
+
+        .note-btn.active { box-shadow: inset 0 -1px 0 rgba(0,0,0,0.3); transform: translateY(3px); }
+        .note-btn.frac { background-color: #55ffff; } 
+        .note-btn.small { background-color: #ffff55; } 
+        .note-btn.large { background-color: #ffaa00; } 
+        .note-btn.zero-btn { grid-column: 1 / span 3; background-color: #aaddff; height: 45px; }
+
+        .floating-text {
+            position: fixed;
+            color: #ffff55;
+            font-weight: bold;
+            font-size: 22px;
+            text-shadow: 2px 2px #000;
+            pointer-events: none;
+            animation: floatUp 0.8s ease-out forwards;
+            z-index: 100;
+        }
+
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-60px); opacity: 0; }
+        }
+
+        @media (max-width: 480px) { .banknote { width: 85px; } .title-section h1 { font-size: 1.3rem; } }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="title-section">
+            <h1>Minecraft 鈔票計數器</h1>
+            <h6>by Nelson LAN</h6>
+            <h6>本品為 Google Gemini 及 prompt engineering 提示工程方式生成，或有錯漏</h6>
+        </div>
+
+        <div class="header">
+            <p class="total-display">總額: § <span id="total-amount">0</span></p>
+            <div class="header-btns">
+                <button id="copy-btn" class="action-btn" onclick="copyTotal()">複製 (Copy)</button>
+                <button id="clear-btn" class="action-btn" onclick="clearDesk()">清除 (Del)</button>
+            </div>
+        </div>
+
+        <div class="desk-container">
+            <div id="desk" class="desk"></div>
+            <canvas id="fx-canvas"></canvas>
+        </div>
+
+        <div class="controls" id="controls"></div>
+    </div>
+
+    <audio id="snd-pop-main" src="pop.mp3"></audio>
+    <audio id="snd-explode" src="explode.ogg"></audio>
+    <audio id="snd-hit-1" src="hit1.ogg"></audio>
+    <audio id="snd-hit-2" src="hit2.ogg"></audio>
+    <audio id="snd-hit-3" src="hit3.ogg"></audio>
+
+    <script>
+        let totalMilli = 0;
+        const deskDiv = document.getElementById('desk');
+        const canvas = document.getElementById('fx-canvas');
+        const ctx = canvas.getContext('2d');
+        const totalSpan = document.getElementById('total-amount');
+
+        function playSound(id) {
+            let targetId = id;
+            if (id === 'snd-pop-random') {
+                const randomIndex = Math.floor(Math.random() * 3) + 1;
+                targetId = `snd-hit-${randomIndex}`;
+            }
+            const snd = document.getElementById(targetId);
+            if (snd) { snd.currentTime = 0; snd.play().catch(()=>{}); }
+        }
+
+        // 複製功能
+        function copyTotal() {
+            const val = totalSpan.innerText;
+            navigator.clipboard.writeText(val).then(() => {
+                const btn = document.getElementById('copy-btn');
+                const originalText = btn.innerText;
+                btn.innerText = "已複製！";
+                setTimeout(() => btn.innerText = originalText, 1000);
+            });
+        }
+
+        let particles = [];
+        function resizeCanvas() {
+            canvas.width = deskDiv.clientWidth;
+            canvas.height = deskDiv.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(x, y, color, type='cube') {
+                this.x = x; this.y = y; this.color = color;
+                this.size = Math.random() * 6 + 4;
+                this.vx = (Math.random() - 0.5) * 8;
+                this.vy = (Math.random() - 0.5) * 8;
+                this.life = 1.0; this.type = type;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if(this.type === 'cube') this.vy += 0.25; 
+                this.life -= 0.03;
+            }
+            draw() {
+                ctx.fillStyle = this.color; ctx.globalAlpha = this.life;
+                if(this.type === 'cube') { ctx.fillRect(this.x, this.y, this.size, this.size); }
+                else { ctx.beginPath(); ctx.arc(this.x, this.y, this.size * 2, 0, Math.PI*2); ctx.fill(); }
+            }
+        }
+
+        function spawnParticles(x, y, color, count, type) {
+            for(let i=0; i<count; i++) particles.push(new Particle(x, y, color, type));
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        const keyMap = {
+            "Numpad7": { label: "10", milli: 10000, class: "large", file: "Minecraft Banknote (8).png", enchanted: true, hint: "7" },
+            "Numpad8": { label: "20", milli: 20000, class: "large", file: "Minecraft Banknote (6).png", enchanted: true, hint: "8" },
+            "Numpad9": { label: "50", milli: 50000, class: "large", file: "Minecraft Banknote (7).png", enchanted: true, hint: "9" },
+            "Numpad4": { label: "1",  milli: 1000,  class: "small", file: "Minecraft Banknote (3).png", hint: "4" },
+            "Numpad5": { label: "2",  milli: 2000,  class: "small", file: "Minecraft Banknote (4).png", hint: "5" },
+            "Numpad6": { label: "5",  milli: 5000,  class: "small", file: "Minecraft Banknote (5).png", hint: "6" },
+            "Numpad1": { label: "1/8", milli: 125,  class: "frac",  file: "Minecraft Banknote (1).png", hint: "1" },
+            "Numpad2": { label: "1/4", milli: 250,  class: "frac",  file: "Minecraft Banknote (9).png", hint: "2" },
+            "Numpad3": { label: "1/2", milli: 500,  class: "frac",  file: "Minecraft Banknote (2).png", hint: "3" },
+            "Numpad0": { label: "1/10", milli: 100, class: "frac zero-btn", file: "Minecraft Banknote.png", hint: "0" }
+        };
+
+        const btnElements = {};
+        Object.keys(keyMap).forEach(key => {
+            const note = keyMap[key];
+            const btn = document.createElement('button');
+            btn.className = `note-btn ${note.class}`;
+            btn.innerHTML = `§ ${note.label} <span class="key-hint">${note.hint}</span>`;
+            btn.onclick = () => triggerAction(key);
+            document.getElementById('controls').appendChild(btn);
+            btnElements[key] = btn;
+        });
+
+        function triggerAction(key) {
+            const note = keyMap[key];
+            if(!note) return;
+            
+            const rect = btnElements[key].getBoundingClientRect();
+            const ft = document.createElement('div');
+            ft.className = 'floating-text';
+            ft.innerText = `+§${note.label}`;
+            ft.style.left = `${rect.left + rect.width/2}px`;
+            ft.style.top = `${rect.top}px`;
+            document.body.appendChild(ft);
+            setTimeout(() => ft.remove(), 800);
+
+            playSound('snd-pop-main'); // 修正為 pop.mp3
+            setTimeout(() => playSound('snd-pop-random'), 80);
+            addNote(note);
+        }
+
+        function addNote(note) {
+            totalMilli += note.milli;
+            totalSpan.innerText = (totalMilli / 1000);
+
+            const img = document.createElement('img');
+            img.src = note.file;
+            img.className = 'banknote' + (note.enchanted ? ' enchanted' : '');
+
+            const deskRect = deskDiv.getBoundingClientRect();
+            const noteWidth = window.innerWidth <= 480 ? 85 : 120;
+            const noteHeight = noteWidth * 1.45; 
+            const padding = 25; 
+
+            const maxX = deskRect.width - noteWidth - padding;
+            const maxY = deskRect.height - noteHeight - padding;
+
+            const randomX = Math.max(padding, Math.random() * maxX);
+            const randomY = Math.max(padding, Math.random() * maxY);
+            const randomRot = (Math.random() * 40) - 20; 
+
+            img.style.left = `${randomX}px`;
+            img.style.top = `${randomY}px`;
+            img.style.transform = `rotate(${randomRot}deg)`;
+            
+            deskDiv.appendChild(img);
+            spawnParticles(randomX + noteWidth/2, randomY + 40, '#55ff55', 8, 'cube');
+        }
+
+        function clearDesk() {
+            if(totalMilli === 0) return;
+            playSound('snd-explode');
+            for(let i=0; i<8; i++) {
+                spawnParticles(Math.random()*canvas.width, Math.random()*canvas.height, '#ffffff', 12, 'smoke');
+            }
+            totalMilli = 0;
+            totalSpan.innerText = "0";
+            deskDiv.innerHTML = '';
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if(keyMap[e.code]) {
+                btnElements[e.code].classList.add('active');
+                triggerAction(e.code);
+            }
+            if(e.code === "Delete" || e.code === "Backspace") clearDesk();
+        });
+        document.addEventListener('keyup', (e) => {
+            if(btnElements[e.code]) btnElements[e.code].classList.remove('active');
+        });
+    </script>
+</body>
+</html>
